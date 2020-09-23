@@ -3,6 +3,8 @@ import json
 import pyttsx3
 import re
 import speech_recognition as sr
+import threading 
+import time
 
 
 API_KEY = 'tDLjW0sFmB5X'
@@ -16,11 +18,12 @@ class Data:
         self.params = { 
             "api_key": self.api_key
         }
-        self.get_data()
+        self.data = self.get_data()
 
     def get_data(self):
-        response = requests.get(f'https://www.parsehub.com/api/v2/projects/{PROJECT_TOKEN}/last_ready_run/data', params={"api_key" : API_KEY})
-        self.data = json.loads(response.text)
+        response = requests.get(f'https://www.parsehub.com/api/v2/projects/{self.project_token}/last_ready_run/data', params=self.params)
+        data = json.loads(response.text)
+        return data
 
     def get_total_cases(self):
         data = self.data['total']
@@ -51,6 +54,24 @@ class Data:
             countries.append(country['name'].lower())
 
         return countries
+
+    def update_data(self):
+        response = requests.post(f'https://www.parsehub.com/api/v2/projects/{self.project_token}/run', params = self.params)
+
+        def poll():
+            time.sleep(0.1)
+            old_data = self.data
+            while True:
+                new_data = self.get_data()
+                if new_data != old_data:
+                    self.data = new_data
+                    print('Data Updated')
+                    break
+                time.sleep(5)
+
+
+        t = threading.Thread(target=poll)
+        t.start()
         
 
 def speak(text):
@@ -91,6 +112,8 @@ def main():
         re.compile("[\w\s]+ cases [\w\s]+"): lambda country: data.get_country_data(country)['total_cases'],
         re.compile("[\w\s]+ deaths [\w\s]+"): lambda country: data.get_country_data(country)['total_deaths'],
     }
+
+    UPDATE_COMMAND = 'update'
     while True:
         print("Listening...")
 
@@ -110,6 +133,10 @@ def main():
             if pattern.match(text):
                 result = func()
                 break
+
+        if text == UPDATE_COMMAND:
+            result = 'Data is being updated. This may take a moment!'
+            data.update_data()
 
         if result:
             speak(result)
