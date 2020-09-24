@@ -100,17 +100,33 @@ def main():
     data = Data(API_KEY, PROJECT_TOKEN) 
     END_PHRASE = 'stop'
     country_list = data.get_list_of_countires()
+
+    def data_exists(country,type):
         
+        if type in data.get_country_data(country):
+            return data.get_country_data(country)[type]
+               
+        else:
+            return 'no data for this request'
+             
     TOTAL_PATTERNS = { 
         re.compile("[\w\s]+ total [\w\s]+ cases"): data.get_total_cases,
         re.compile("[\w\s]+ total cases"): data.get_total_cases,
+        re.compile("total cases"): data.get_total_cases,
         re.compile("[\w\s]+ total [\w\s]+ deaths"): data.get_total_deaths,
-        re.compile("[\w\s]+ total deaths"): data.get_total_deaths,   
+        re.compile("[\w\s]+ total deaths"): data.get_total_deaths,
+        re.compile("total deaths"): data.get_total_deaths,  
     }
 
     COUNTRY_PATTERNS = {
-        re.compile("[\w\s]+ cases [\w\s]+"): lambda country: data.get_country_data(country)['total_cases'],
-        re.compile("[\w\s]+ deaths [\w\s]+"): lambda country: data.get_country_data(country)['total_deaths'],
+        re.compile("[\w\s]+ cases [\w\s]+"): lambda country: data_exists(country, 'total_cases'),
+        re.compile("[\w\s]+ deaths [\w\s]+"): lambda country: data_exists(country, 'total_deaths'),
+        re.compile("[\w\s]+ new [\w\s]+"): lambda country: data_exists(country, 'New_Cases'),
+        re.compile("[\w\s]+ tests per million [\w\s]+"): lambda country: data_exists(country, 'total_cases_per1M_pop'),
+        re.compile("[\w\s]+ cases per million [\w\s]+"): lambda country: data_exists(country, 'deaths_per1m_pop'),
+        re.compile("[\w\s]+ deaths per million [\w\s]+"): lambda country: data_exists(country, 'tests_per1M_pop'),
+        re.compile("[\w\s]+ active cases[\w\s]+"): lambda country: data_exists(country, 'active_cases'),
+      
     }
 
     UPDATE_COMMAND = 'update'
@@ -121,6 +137,11 @@ def main():
         print(text)
         result = None
 
+        for pattern, func in TOTAL_PATTERNS.items():
+            if pattern.match(text):
+                result = func()
+                break
+
         for pattern, func in COUNTRY_PATTERNS.items():
             if pattern.match(text):
                 words = set(text.split(" "))
@@ -129,10 +150,6 @@ def main():
                         result = func(country)
                         break
 
-        for pattern, func in TOTAL_PATTERNS.items():
-            if pattern.match(text):
-                result = func()
-                break
 
         if text == UPDATE_COMMAND:
             result = 'Data is being updated. This may take a moment!'
